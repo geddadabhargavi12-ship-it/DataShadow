@@ -305,6 +305,220 @@ body {
 .hero-visual .preview-score .mini-ring { border-color: #83d9c8; }
 button:focus-visible, a:focus-visible, input:focus-visible { outline-color: #79e1ca; }
 
+/* App dashboard inspired by the supplied inspector reference. */
+:root { --mint: #42c8ed; --blue: #6d9dff; }
+body { background-color: #07101e; }
+.topbar.app-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 30;
+  width: 258px;
+  height: 100vh;
+  min-height: 560px;
+  padding: 30px 17px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  border-right: 1px solid #a5c7ff19;
+  border-bottom: 0;
+  background: linear-gradient(180deg, #091322 0%, #080f1d 100%);
+  backdrop-filter: blur(18px);
+}
+.app-sidebar .brand { align-self: flex-start; gap: 12px; margin: 0 0 54px 3px; font-size: 18px; }
+.app-sidebar .brand > span:last-child { display: flex; flex-direction: column; line-height: 1.1; }
+.app-sidebar .brand small { margin-top: 6px; color: #73869d; font: 9px var(--mono); letter-spacing: .15em; }
+.app-sidebar .brand-mark { width: 42px; height: 42px; border-radius: 13px; }
+.sidebar-caption { padding: 0 12px 10px; color: #687b92; font: 9px var(--mono); letter-spacing: .16em; }
+.topbar.app-sidebar nav {
+  height: auto;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  color: #9baac0;
+  font-size: 13px;
+}
+.topbar.app-sidebar nav a.side-link {
+  height: 48px;
+  display: flex;
+  justify-content: flex-start;
+  gap: 13px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: #9baac0;
+  font-size: 13px;
+  font-weight: 600;
+  transition: color .2s, background .2s, border-color .2s, transform .2s;
+}
+.topbar.app-sidebar nav a.side-link::after { display: none; }
+.topbar.app-sidebar nav a.side-link svg {
+  width: 19px;
+  height: 19px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.topbar.app-sidebar nav a.side-link:hover {
+  color: #d6e8ff;
+  border-color: #5596ff24;
+  background: #14233a;
+  transform: translateX(2px);
+}
+.topbar.app-sidebar nav a.side-link.active {
+  position: relative;
+  color: #77b4ff;
+  border-color: #468bff30;
+  background: linear-gradient(100deg, #142849, #101d32);
+  box-shadow: 0 8px 26px #206dff16, inset 0 1px #ffffff08;
+}
+.topbar.app-sidebar nav a.side-link.active::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: #438cff;
+  box-shadow: 0 0 15px #438cff99;
+}
+.sidebar-bottom { margin-top: auto; padding: 16px 1px 0; border-top: 1px solid #b4cfff14; }
+.app-sidebar .db-badge {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 12px 11px;
+  border-color: #293b51;
+  border-radius: 9px;
+  background: #0e1929;
+  font-size: 9px;
+}
+.app-sidebar .auth-controls {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px 5px 2px;
+}
+.app-sidebar .auth-controls > span { max-width: 100%; font-size: 10px; }
+.app-sidebar .auth-controls .small-btn { min-height: 35px; font-size: 10px; }
+.sidebar-build { display: grid; gap: 6px; margin-top: 18px; padding: 13px 10px 2px; border-top: 1px solid #b4cfff12; }
+.sidebar-build span { color: #7487a0; font: 8px var(--mono); letter-spacing: .09em; }
+.sidebar-build small { color: #52657a; font-size: 9px; }
+main {
+  width: min(100% - 258px, 1500px);
+  max-width: 1500px;
+  margin: 0 0 0 258px;
+  padding: 46px clamp(28px, 4vw, 68px) 30px;
+}
+footer { width: calc(100% - 258px); max-width: none; margin: 0 0 0 258px; padding-inline: clamp(28px, 4vw, 68px); }
+.hero { min-height: 600px; padding-top: 83px; }
+.hero-visual::after { border-color: #35527e88; background: #0e1a2cdb; color: #a9c4e4; }
+.hero h1 span { background-image: linear-gradient(95deg, #41d1e9 4%, #438cff 72%, #9b8cff 100%); }
+.hero-visual::before {
+  background-image:
+    radial-gradient(circle, #10355b00 41%, #14234324 69%, transparent 72%),
+    repeating-conic-gradient(from 0deg, #65a5ff14 0deg 1deg, transparent 1deg 30deg),
+    radial-gradient(circle, #1a638346, #19366a30 44%, transparent 70%);
+}
+.visual-orbit { border-color: #67a5ff20; }
+.orbit-two { border-color: #47d4e323; }
+.brand-mark { color: #67d9f1; border-color: #50bde155; background: linear-gradient(145deg, #113244, #111f35); }
+.brand-mark span { background: #55caea; box-shadow: 0 0 10px #55caea88; }
+.hero-main .eyebrow::after { color: #72aeff; border-color: #4d7fb772; }
+.hero:before { color: #68dcf2; text-shadow: 0 0 30px #41c8f355; }
+.button.primary {
+  color: #fff;
+  background: linear-gradient(120deg, #347df0, #2859dc);
+  box-shadow: 0 9px 28px #2563eb3b;
+}
+.button.primary:hover { background: linear-gradient(120deg, #4a91ff, #3971f1); }
+.button.primary::after { background: #dceeff8a; }
+.auth-tabs button.active { color: #75b3ff; border-color: #3986f6; }
+.small-btn.selected { border-color: #4b95ff88; color: #8dbdff; background: #172c49; }
+.quiz-card button:hover, .show-more:hover { border-color: #4b95ff; color: #91bdff; }
+.scan-rail i { background: linear-gradient(90deg, #46d4e9, #438cff); }
+.category-card strong, .lesson-card > span, .privacy-link { color: #73d9e7; }
+.empty-orbit, .history-favicon { color: #77b8ff; }
+.input-row input:focus, .expected-input:focus, .compare-form input:focus,
+.finding-filters input:focus, .finding-filters select:focus, .auth-form input:focus {
+  border-color: #4b95ff;
+  box-shadow: 0 0 0 3px #347df020;
+}
+button:focus-visible, a:focus-visible, input:focus-visible { outline-color: #71bcff; }
+body:not(.authenticated) .topbar.app-sidebar {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: 72px;
+  min-height: 0;
+  padding: 0 24px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  border-right: 0;
+  border-bottom: 1px solid #a5c7ff19;
+}
+body:not(.authenticated) .app-sidebar .brand { margin: 0; }
+body:not(.authenticated) .app-sidebar .brand-mark { width: 34px; height: 34px; }
+body:not(.authenticated) .sidebar-caption, body:not(.authenticated) .app-sidebar nav,
+body:not(.authenticated) .sidebar-bottom, body:not(.authenticated) footer { display: none; }
+body:not(.authenticated) main { width: min(100%, 700px); margin: 0 auto; padding: 24px; }
+body:not(.authenticated) .auth-gate { min-height: calc(100vh - 96px); }
+
+@media (max-width: 980px) {
+  .topbar.app-sidebar {
+    position: sticky;
+    inset: auto;
+    width: 100%;
+    height: 74px;
+    min-height: 0;
+    padding: 0 22px;
+    flex-direction: row;
+    align-items: center;
+    gap: 19px;
+    border-right: 0;
+    border-bottom: 1px solid #a5c7ff19;
+  }
+  .app-sidebar .brand { flex: none; margin: 0; }
+  .sidebar-caption, .sidebar-build { display: none; }
+  .topbar.app-sidebar nav {
+    display: flex;
+    flex: 1;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+  .topbar.app-sidebar nav a.side-link { height: 42px; gap: 8px; padding: 0 10px; font-size: 11px; }
+  .topbar.app-sidebar nav a.side-link svg { width: 16px; height: 16px; }
+  .sidebar-bottom { margin: 0; padding: 0; border: 0; }
+  .app-sidebar .db-badge { width: auto; padding: 8px 10px; }
+  .app-sidebar .auth-controls { position: absolute; right: 20px; top: 73px; padding: 9px; border: 1px solid #304753; border-radius: 0 0 9px 9px; background: #0b1522; }
+  main { width: 100%; margin-left: 0; padding: 38px 34px 26px; }
+  footer { width: 100%; margin-left: 0; padding-inline: 34px; }
+  body:not(.authenticated) .topbar.app-sidebar { position: relative; }
+  body:not(.authenticated) main { width: min(100%, 700px); margin: 0 auto; padding: 24px; }
+}
+@media (max-width: 620px) {
+  .topbar.app-sidebar { height: auto; min-height: 65px; padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+  .app-sidebar .brand { font-size: 15px; }
+  .app-sidebar .brand small { display: none; }
+  .app-sidebar .brand-mark { width: 31px; height: 31px; }
+  .topbar.app-sidebar nav { order: 3; flex: 1 0 100%; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; }
+  .topbar.app-sidebar nav::-webkit-scrollbar { display: none; }
+  .topbar.app-sidebar nav a.side-link { flex: none; height: 36px; gap: 6px; padding: 0 9px; font-size: 9px; }
+  .topbar.app-sidebar nav a.side-link svg { width: 14px; height: 14px; }
+  .app-sidebar .db-badge { padding: 7px 8px; font-size: 7px; }
+  .app-sidebar .auth-controls { top: 62px; right: 12px; }
+  main { padding: 27px 19px 20px; }
+  .hero { min-height: 0; padding: 44px 0 64px; }
+  .hero-visual::after { right: 0; bottom: 7px; }
+  footer { padding-inline: 19px; }
+  body:not(.authenticated) .topbar.app-sidebar { height: 65px; min-height: 65px; padding-inline: 15px; }
+  body:not(.authenticated) .topbar.app-sidebar nav { display: none; }
+}
+
 main { max-width: 1320px; padding-inline: 40px; }
 .hero {
   min-height: 690px;

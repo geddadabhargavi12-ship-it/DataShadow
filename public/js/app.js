@@ -377,6 +377,23 @@ $('#logoutButton').addEventListener('click', async () => {
   try { await api('/api/auth/logout', { method: 'POST', body: '{}' });showAuth('You have signed out.'); }
   catch (error) { showAuth(`Sign-out could not be confirmed by the server: ${error.message}`); }
 });
+
+const sidebarLinks = $$('.side-link');
+for (const link of sidebarLinks) {
+  link.addEventListener('click', () => {
+    sidebarLinks.forEach(item => item.classList.toggle('active', item === link));
+  });
+}
+if ('IntersectionObserver' in window) {
+  const sectionObserver = new IntersectionObserver(entries => {
+    const current = entries.filter(entry => entry.isIntersecting)
+      .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+    if (!current) return;
+    sidebarLinks.forEach(link => link.classList.toggle('active', link.hash === `#${current.target.id}`));
+  }, { rootMargin: '-18% 0px -68% 0px', threshold: [0, 0.15, 0.35] });
+  for (const section of $$('main > section[id]')) sectionObserver.observe(section);
+}
+
 (async () => {
   try { const result = await api('/api/auth/me'); showWorkspace(result.user); }
   catch (error) {
