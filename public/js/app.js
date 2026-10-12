@@ -7,9 +7,15 @@ let currentReport = null;
 let currentFindings = [];
 
 async function api(url, options = {}) {
-  const response = await fetch(url, { ...options, headers: { 'content-type': 'application/json', ...(options.headers || {}) } });
+  let response;
+  try {
+    response = await fetch(url, { ...options, headers: { 'content-type': 'application/json', ...(options.headers || {}) } });
+  } catch {
+    throw new Error('Cannot reach the DataShadow server. Make sure it is running, then try again.');
+  }
   const data = await response.json().catch(() => ({ error: 'The server returned an unreadable response.' }));
-  if (!response.ok) throw new Error(data.error || `Request failed (${response.status}).`);
+  if (!response.ok) throw new Error(data?.error || `Request failed (${response.status}).`);
+  if (data == null) throw new Error('The server returned an empty response. Please try again.');
   return data;
 }
 function escapeHtml(value = '') {
