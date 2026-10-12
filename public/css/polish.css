@@ -519,6 +519,17 @@ body:not(.authenticated) .auth-gate { min-height: calc(100vh - 96px); }
   body:not(.authenticated) .topbar.app-sidebar nav { display: none; }
 }
 
+/* Make every documented result state visible in the report UI. */
+.summary-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.summary-card.not_applicable { border-color: #3a4f69; background: #121d2c; color: #a8bad0; }
+.summary-card.not_applicable span { font-size: 7px; }
+.finding-status.st-NOT_APPLICABLE { color: #a8bad0; }
+.history-summary .f { color: var(--red); }
+.history-summary .na { color: #91a9c6; }
+@media (max-width: 620px) {
+  .summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
 main { max-width: 1320px; padding-inline: 40px; }
 .hero {
   min-height: 690px;

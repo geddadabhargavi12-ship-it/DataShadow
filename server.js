@@ -64,17 +64,17 @@ function isPublicIp(ip) {
   // Only global unicast 2000::/3 is accepted; exclude documentation and transition/special ranges.
   return (g[0]&0xe000)===0x2000 && !(g[0]===0x2001 && (g[1]<=0x01ff || g[1]===0x0db8 || g[1]===0x0002)) && !(g[0]===0x2002);
 }
-async function resolvePublic(host) {
+async function resolvePublic(host, lookup=dns.lookup) {
   const ip = net.isIP(host);
-  const records = ip ? [{ address: host, family: ip }] : await dns.lookup(host, { all: true, verbatim: true });
+  const records = ip ? [{ address: host, family: ip }] : await lookup(host, { all: true, verbatim: true });
   if (!records.length || records.some(r => !isPublicIp(r.address))) fail('The hostname resolves to a private or reserved address; the request was blocked.', 400);
   return records;
 }
 function withTimeout(promise, ms) { return new Promise((resolve,reject)=>{ const timer=setTimeout(()=>reject(Object.assign(new Error('The website request timed out.'),{code:'ETIMEDOUT'})),ms); Promise.resolve(promise).then(value=>{clearTimeout(timer);resolve(value)},error=>{clearTimeout(timer);reject(error)}); }); }
-function requestOnce(u, method = 'GET', maxBytes = MAX_BODY, timeoutMs = TIMEOUT) {
+function requestOnce(u, method = 'GET', maxBytes = MAX_BODY, timeoutMs = TIMEOUT, resolver=resolvePublic) {
   return new Promise(async (resolve, reject) => {
     let records;
-    try { records = await withTimeout(resolvePublic(u.hostname.replace(/^\[|\]$/g, '')),timeoutMs); } catch (e) { reject(e); return; }
+    try { records = await withTimeout(resolver(u.hostname.replace(/^\[|\]$/g, '')),timeoutMs); } catch (e) { reject(e); return; }
     const lib = u.protocol === 'https:' ? https : http;
     const req = lib.request(u, { method, timeout: timeoutMs, headers: { 'user-agent': 'DataShadow/1.0 (website configuration inspection)', accept: 'text/html,application/xhtml+xml,*/*;q=0.5' }, lookup: (_host, opts, cb) => opts?.all ? cb(null, records) : cb(null, records[0].address, records[0].family), rejectUnauthorized: true, servername: u.hostname.replace(/^\[|\]$/g, '') }, res => {
       const socket=res.socket;
@@ -90,15 +90,15 @@ function requestOnce(u, method = 'GET', maxBytes = MAX_BODY, timeoutMs = TIMEOUT
     req.on('error', reject); req.end();
   });
 }
-async function fetchSafe(input, method='GET', maxBytes=MAX_BODY, deadline=Date.now()+8000) {
+async function fetchSafe(input, method='GET', maxBytes=MAX_BODY, deadline=Date.now()+8000, options={}) {
   let u=validUrl(input); const redirectChain=[]; const tlsObservations=[];
   for(let i=0;i<=3;i++) {
     const remaining=deadline-Date.now(); if(remaining<=0) fail('The website request timed out.',502);
-    const r=await requestOnce(u,method,maxBytes,Math.min(TIMEOUT,remaining));
+    const r=await requestOnce(u,method,maxBytes,Math.min(TIMEOUT,remaining),options.resolvePublic||resolvePublic);
     if(u.protocol==='https:') tlsObservations.push({url:normalizedUrl(u.href),...r.tls});
     if([301,302,303,307,308].includes(r.status) && r.headers.location) {
       if(i===3) fail('The website exceeded the redirect limit.', 502);
-      const next=validUrl(new URL(r.headers.location,u).href);
+      const next=safeRedirectTarget(r.headers.location,u.href);
       redirectChain.push({from:u.href,status:r.status,to:next.href});
       u=next; continue;
     }
@@ -112,8 +112,51 @@ function finding(id,name,status,explanation,evidence,action,details={}) {
   const severity=details.severity||(status==='FAIL'?'high':status==='REVIEW'?(category==='configuration'?'low':'medium'):'info');
   return {id,name,status,category:details.categoryLabel||CATEGORIES[category]||category,severity,confidence:details.confidence||(status==='UNKNOWN'?'low':'high'),explanation,beginnerExplanation:details.beginnerExplanation||explanation,technicalExplanation:details.technicalExplanation||explanation,impact:details.impact||explanation,evidence,rawEvidence:details.rawEvidence??evidence,action,remediation:details.remediation||{summary:action,nginx:null,node:null,caution:null},observedAt:details.observedAt||new Date()};
 }
-function summarize(findings) { const counts={PASS:0,REVIEW:0,FAIL:0,UNKNOWN:0}; for(const f of findings) if(counts[f.status]!==undefined) counts[f.status]++; return counts; }
+function summarize(findings) { const counts={PASS:0,REVIEW:0,FAIL:0,UNKNOWN:0,NOT_APPLICABLE:0}; for(const f of findings) if(counts[f.status]!==undefined) counts[f.status]++; return counts; }
 function checkPoints(status) { return status==='PASS'?100:status==='REVIEW'?50:status==='FAIL'?0:null; }
+const CERTIFICATE_ERRORS={
+  CERT_HAS_EXPIRED:'The certificate has expired.',
+  CERT_NOT_YET_VALID:'The certificate is not valid yet.',
+  ERR_TLS_CERT_ALTNAME_INVALID:'The certificate hostname does not match the website.',
+  DEPTH_ZERO_SELF_SIGNED_CERT:'The certificate is self-signed and was not trusted.',
+  SELF_SIGNED_CERT_IN_CHAIN:'The certificate chain contains an untrusted self-signed certificate.',
+  UNABLE_TO_VERIFY_LEAF_SIGNATURE:'The certificate chain could not be verified.',
+  UNABLE_TO_GET_ISSUER_CERT:'The certificate issuer could not be verified.',
+  UNABLE_TO_GET_ISSUER_CERT_LOCALLY:'The certificate issuer is not trusted by this scanner.'
+};
+function tlsCheck(requestedProtocol, observation, error) {
+  if(observation?.authorized===true) {
+    const expiry=observation.validTo?new Date(observation.validTo):null;
+    const starts=observation.validFrom?new Date(observation.validFrom):null;
+    const daysUntilExpiry=expiry&&!Number.isNaN(expiry.getTime())?Math.floor((expiry.getTime()-Date.now())/86400000):null;
+    if(daysUntilExpiry!==null&&daysUntilExpiry<0) return {status:'FAIL',explanation:'The TLS certificate has expired.',evidence:JSON.stringify({validation:'rejected',reason:'expired',validTo:observation.validTo}),action:'Renew the certificate, then confirm the full certificate chain is served.'};
+    if(starts&&!Number.isNaN(starts.getTime())&&starts.getTime()>Date.now()) return {status:'FAIL',explanation:'The TLS certificate is not valid yet.',evidence:JSON.stringify({validation:'rejected',reason:'not-yet-valid',validFrom:observation.validFrom}),action:'Check the certificate start date and the server clock.'};
+    return {status:'PASS',explanation:'Node.js verified the TLS certificate chain and hostname for this connection.',evidence:JSON.stringify({validation:'accepted',hostnameMatched:true,trustChainValid:true,issuer:observation.issuer||null,validFrom:observation.validFrom||null,validTo:observation.validTo||null,daysUntilExpiry}),action:'Keep the certificate renewed and correctly configured for this hostname.'};
+  }
+  if(observation?.authorized===false) return {status:'FAIL',explanation:'TLS certificate validation failed for this connection.',evidence:'Certificate validation was rejected by Node.js.',action:'Review the certificate chain, hostname, and validity dates.'};
+  const reason=CERTIFICATE_ERRORS[error?.code];
+  if(reason) return {status:'FAIL',explanation:reason,evidence:`TLS validation failed (${error.code}).`,action:'Renew or correctly configure the TLS certificate for this hostname.'};
+  if(requestedProtocol!=='https:') return {status:'NOT_APPLICABLE',explanation:'The submitted URL uses HTTP, so there was no TLS certificate to evaluate.',evidence:'Submitted scheme: HTTP.',action:'Use HTTPS to encrypt the connection and enable certificate validation.'};
+  return {status:'UNKNOWN',explanation:'TLS could not be evaluated because the HTTPS response was unavailable or certificate details were not returned.',evidence:networkExplanation(error),action:'Retry when the website is reachable.'};
+}
+function headerCheck(name, description, value) {
+  return value
+    ? {status:'PASS',explanation:`${description} The header was present.`,evidence:String(value).slice(0,500)}
+    : {status:'REVIEW',explanation:`${description} The header was not present in the inspected response.`,evidence:'Header absent from final response.'};
+}
+function redirectCheck(finalUrl) {
+  const secure=new URL(finalUrl).protocol==='https:';
+  return {status:secure?'PASS':'REVIEW',explanation:secure?'The HTTP request ended at HTTPS.':'The HTTP request did not end at HTTPS.'};
+}
+function responseCheck(status) {
+  return {status:status>=400?'REVIEW':'PASS',explanation:`The server returned HTTP ${status}.`};
+}
+function safeRedirectTarget(location, baseUrl) {
+  let target;
+  try { target=new URL(location,baseUrl); }
+  catch { fail('The website returned an invalid redirect destination.',502); }
+  return validUrl(target.href);
+}
 function categoryScores(findings,privacy,behaviorStatus) {
   const sets={connection:['https','redirect','tls'],configuration:['csp','hsts','nosniff','referrer','permissions']};
   const categories={};
@@ -131,10 +174,10 @@ function categoryScores(findings,privacy,behaviorStatus) {
   const weightTotal=available.reduce((n,[k])=>n+weights[k],0);
   const score=weightTotal?Math.round(available.reduce((n,[k,v])=>n+v.score*weights[k],0)/weightTotal):null;
   const tech=findings.filter(f=>['https','redirect','tls','csp','hsts','nosniff','referrer','permissions'].includes(f.id));
-  const observed=tech.filter(f=>f.status!=='UNKNOWN').length;
+  const observed=tech.filter(f=>['PASS','REVIEW','FAIL'].includes(f.status)).length;
   const evidenceCoverage=Math.round(observed/8*100);
   const enoughEvidence=observed>=4;
-  return {score:!enoughEvidence?null:score,label:!enoughEvidence?'Not enough data':score>=80?'Stronger signals':score>=55?'Mixed signals':'Needs attention',categories,evidenceCoverage,assessed:observed,total:8,formula:'Configuration scores: PASS = 100, REVIEW = 50, FAIL = 0; UNKNOWN is omitted. The indicator combines connection (40%), security configuration (40%), and observable response behavior (20%); unavailable categories are omitted and remaining weights are normalized. Privacy wording appears separately as topic coverage and does not affect this score. At least 4 of 8 connection/configuration checks must complete before an overall score is shown. This is not a probability of safety.'};
+  return {score:!enoughEvidence?null:score,label:!enoughEvidence?'Not enough data':score>=80?'Stronger signals':score>=55?'Mixed signals':'Needs attention',categories,evidenceCoverage,assessed:observed,total:8,formula:'Configuration scores: PASS = 100, REVIEW = 50, FAIL = 0; UNKNOWN and NOT APPLICABLE are excluded. The indicator combines connection (40%), security configuration (40%), and observable response behavior (20%); unavailable categories are omitted and remaining weights are normalized. Privacy wording appears separately as topic coverage and does not affect this score. At least 4 of 8 connection/configuration checks must complete before an overall score is shown. This is not a probability of safety.'};
 }
 const POLICY_TOPICS=[
   ['personal_information','Personal information',/personal (?:information|data)|collect(?:s|ing)? (?:your )?(?:information|data)|information we collect/i],
@@ -221,7 +264,7 @@ function networkExplanation(error) {
   return 'The website could not be reached from the scanner.';
 }
 function unknownPolicyTopics() { return POLICY_TOPICS.map(([id,label])=>({id,label,status:'UNKNOWN',excerpt:null,explanation:'Policy text could not be analyzed safely.'})); }
-async function inspectAdvanced(input,expectedDomain=null) {
+async function inspectAdvanced(input,expectedDomain=null,options={}) {
   const startedAt=new Date(); const requested=validUrl(input); const reportUrl=normalizedUrl(requested.href); const deadline=Date.now()+8000; const findings=[];
   let expected=(expectedDomain||'').trim()||null;
   if(expected) {
@@ -231,21 +274,21 @@ async function inspectAdvanced(input,expectedDomain=null) {
   findings.push(finding('https','HTTPS availability',requested.protocol==='https:'?'PASS':'REVIEW',requested.protocol==='https:'?'The submitted address uses HTTPS.':'The submitted address uses HTTP and does not encrypt the connection.',requested.protocol,requested.protocol==='https:'?'Continue using HTTPS and keep the certificate current.':'Enable HTTPS and redirect HTTP visitors.',{technicalExplanation:'The scanner records the submitted URL scheme; this check alone does not assess application security.',impact:'HTTP traffic can be observed or modified in transit.',remediation:FIX_GUIDES.redirect}));
   const redirectUrl=new URL(requested.href);
   if(requested.protocol==='https:'){redirectUrl.protocol='http:';if(!requested.port||requested.port==='443')redirectUrl.port='';}
-  const requests=[fetchSafe(requested.href,'GET',MAX_BODY,deadline)];
-  if(requested.protocol==='https:') requests.push(fetchSafe(redirectUrl.href,'GET',64*1024,deadline));
+  const requests=[fetchSafe(requested.href,'GET',MAX_BODY,deadline,options)];
+  if(requested.protocol==='https:') requests.push(fetchSafe(redirectUrl.href,'GET',64*1024,deadline,options));
   const outcomes=await Promise.allSettled(requests);
   const primary=outcomes[0]; const response=primary.status==='fulfilled'?primary.value:null; const mainError=primary.status==='rejected'?primary.reason:null;
   let redirectProbe=requested.protocol==='https:'&&outcomes[1]?.status==='fulfilled'?outcomes[1].value:null;
   const redirectError=requested.protocol==='https:'&&outcomes[1]?.status==='rejected'?outcomes[1].reason:null;
   if(requested.protocol==='http:') {
     if(response) {
-      const final=new URL(response.url); const status=final.protocol==='https:'?'PASS':'REVIEW';
-      findings.push(finding('redirect','HTTP-to-HTTPS redirect',status,status==='PASS'?'The HTTP request ended at HTTPS.':'The HTTP request did not end at HTTPS.',JSON.stringify(response.redirectChain),status==='PASS'?'Keep the redirect enabled for all HTTP routes.':'Configure a permanent HTTP-to-HTTPS redirect.',{technicalExplanation:'The scanner followed and revalidated each redirect, then inspected the final scheme.',remediation:FIX_GUIDES.redirect}));
+      const result=redirectCheck(response.url);
+      findings.push(finding('redirect','HTTP-to-HTTPS redirect',result.status,result.explanation,JSON.stringify(response.redirectChain),result.status==='PASS'?'Keep the redirect enabled for all HTTP routes.':'Configure a permanent HTTP-to-HTTPS redirect.',{technicalExplanation:'The scanner followed and revalidated each redirect, then inspected the final scheme.',remediation:FIX_GUIDES.redirect}));
     } else findings.push(finding('redirect','HTTP-to-HTTPS redirect','UNKNOWN','Redirect behavior could not be verified because the site did not respond.',networkExplanation(mainError),'Retry when the site is available.'));
   } else {
     if(redirectProbe) {
-      const status=new URL(redirectProbe.url).protocol==='https:'&&redirectProbe.redirectChain.length>0?'PASS':new URL(redirectProbe.url).protocol==='https:'?'PASS':'REVIEW';
-      findings.push(finding('redirect','HTTP-to-HTTPS redirect',status,status==='PASS'?'The HTTP probe ended at HTTPS.':'The HTTP probe remained on HTTP.',JSON.stringify(redirectProbe.redirectChain),status==='PASS'?'Keep the redirect enabled for all HTTP routes.':'Configure a permanent HTTP-to-HTTPS redirect.',{technicalExplanation:'A separate HTTP request was sent to the same public host. Every redirect destination was revalidated.',remediation:FIX_GUIDES.redirect}));
+      const result=redirectCheck(redirectProbe.url);
+      findings.push(finding('redirect','HTTP-to-HTTPS redirect',result.status,result.status==='PASS'?'The HTTP probe ended at HTTPS.':'The HTTP probe remained on HTTP.',JSON.stringify(redirectProbe.redirectChain),result.status==='PASS'?'Keep the redirect enabled for all HTTP routes.':'Configure a permanent HTTP-to-HTTPS redirect.',{technicalExplanation:'A separate HTTP request was sent to the same public host. Every redirect destination was revalidated.',remediation:FIX_GUIDES.redirect}));
     } else findings.push(finding('redirect','HTTP-to-HTTPS redirect','UNKNOWN','The separate HTTP probe could not be completed.',networkExplanation(redirectError),'Retry the scan when the website is reachable.',{confidence:'low'}));
   }
   let privacy={status:'UNKNOWN',policyUrl:null,fingerprint:null,topics:unknownPolicyTopics(),indicators:[],message:'No accessible privacy policy was analyzed.'};
@@ -254,27 +297,25 @@ async function inspectAdvanced(input,expectedDomain=null) {
     const finalUrl=new URL(response.url); const tlsObservation=[...(response.tlsObservations||[])].reverse().find(t=>t.authorized!==undefined)||null;
     observations.redirectChain=response.redirectChain.map(r=>({...r,from:normalizedUrl(r.from),to:normalizedUrl(r.to)}));
     observations.finalUrl=normalizedUrl(response.url);observations.status=response.status;observations.contentType=response.headers['content-type']||null;observations.contentLength=response.headers['content-length']||null;observations.tls=response.tlsObservations||[];
-    if(finalUrl.protocol==='https:') {
-      const status=tlsObservation?.authorized===true?'PASS':tlsObservation?.authorized===false?'FAIL':'UNKNOWN';
-      const evidence=tlsObservation?JSON.stringify({authorized:tlsObservation.authorized,issuer:tlsObservation.issuer,validFrom:tlsObservation.validFrom,validTo:tlsObservation.validTo,hostnameMatched:tlsObservation.authorized}):'Certificate metadata unavailable.';
-      findings.push(finding('tls','TLS certificate',status,status==='PASS'?'Node.js accepted the certificate chain and hostname.':status==='FAIL'?'The certificate validation did not succeed.':'The response arrived but certificate metadata was unavailable.',evidence,status==='FAIL'?'Renew or correctly configure the certificate for this hostname.':'Retry if certificate details remain unavailable.',{technicalExplanation:'Certificate verification uses Node.js TLS hostname and trust-chain validation with rejectUnauthorized enabled. Hostname matching follows that same verification result.'}));
-    } else findings.push(finding('tls','TLS certificate','UNKNOWN','The final response URL uses HTTP, so its certificate could not be evaluated.','Final scheme: HTTP','Configure HTTPS for the destination hostname.'));
+    const tls=tlsCheck(requested.protocol,tlsObservation,null);
+    findings.push(finding('tls','TLS certificate',tls.status,tls.explanation,tls.evidence,tls.action,{technicalExplanation:'Node.js performs TLS certificate chain and hostname verification with rejectUnauthorized enabled. Expiry dates are displayed when the peer certificate is available.'}));
     const headerChecks=[
       ['csp','Content-Security-Policy','Helps limit the origins allowed to load active content.'],['hsts','Strict-Transport-Security','Tells browsers to prefer HTTPS on later visits.'],['nosniff','X-Content-Type-Options','Helps stop MIME-type guessing by browsers.'],['referrer','Referrer-Policy','Controls referrer information sent to other sites.'],['permissions','Permissions-Policy','Restricts selected browser capabilities.']
     ];
     const headerNames={csp:'content-security-policy',hsts:'strict-transport-security',nosniff:'x-content-type-options',referrer:'referrer-policy',permissions:'permissions-policy'};
     for(const [id,name,why] of headerChecks) {
       const value=response.headers[headerNames[id]]||null;if(value)observations.headers[name]=String(value).slice(0,500);
+      const result=headerCheck(name,why,value);
       const opts={technicalExplanation:why,rawEvidence:value||'Header absent from final response.',remediation:FIX_GUIDES[id]||null,impact:value?why:'A missing header is a hardening opportunity; by itself it does not prove a vulnerability.'};
-      findings.push(finding(id,name,value?'PASS':'REVIEW',value?`${why} The header was present.`:`${why} The header was not present in the inspected response.`,value||'Header absent from final response.',value?'Review the value periodically and keep it aligned with the site.':(FIX_GUIDES[id]?.summary||'Review whether this header fits the site and configure it at the web server or CDN.'),opts));
+      findings.push(finding(id,name,result.status,result.explanation,result.evidence,value?'Review the value periodically and keep it aligned with the site.':(FIX_GUIDES[id]?.summary||'Review whether this header fits the site and configure it at the web server or CDN.'),opts));
     }
-    behaviorStatus=response.status>=400?'REVIEW':'PASS';
-    findings.push(finding('response','HTTP response',behaviorStatus,`The server returned HTTP ${response.status}.`,`Status ${response.status}; content type ${response.headers['content-type']||'not supplied'}; redirect hops ${response.redirectChain.length}.`,behaviorStatus==='PASS'?'Confirm this status is expected for the inspected page.':'Review the response and availability behavior for this route.',{technicalExplanation:'Only response status and selected non-sensitive metadata are retained; the response body is discarded after local policy extraction.',category:'behavior',severity:behaviorStatus==='REVIEW'?'medium':'info',rawEvidence:JSON.stringify({status:response.status,contentType:observations.contentType,contentLength:observations.contentLength,redirectChain:observations.redirectChain})}));
+    const responseResult=responseCheck(response.status); behaviorStatus=responseResult.status;
+    findings.push(finding('response','HTTP response',behaviorStatus,responseResult.explanation,`Status ${response.status}; content type ${response.headers['content-type']||'not supplied'}; redirect hops ${response.redirectChain.length}.`,behaviorStatus==='PASS'?'Confirm this status is expected for the inspected page.':'Review the response and availability behavior for this route.',{technicalExplanation:'Only response status and selected non-sensitive metadata are retained; the response body is discarded after local policy extraction.',category:'behavior',severity:behaviorStatus==='REVIEW'?'medium':'info',rawEvidence:JSON.stringify({status:response.status,contentType:observations.contentType,contentLength:observations.contentLength,redirectChain:observations.redirectChain})}));
     const policyCandidates=findPolicyLinks(response.body,response.url);
     for(const candidate of policyCandidates) {
       if(Date.now()>=deadline)break;
       try {
-        const policyResponse=await fetchSafe(candidate,'GET',256*1024,deadline);
+        const policyResponse=await fetchSafe(candidate,'GET',256*1024,deadline,options);
         if(policyResponse.status<200||policyResponse.status>=400)continue;
         const type=String(policyResponse.headers['content-type']||'');if(type&&!/(html|text|xhtml)/i.test(type))continue;
         const text=readableText(policyResponse.body);if(text.length<80)continue;
@@ -282,9 +323,8 @@ async function inspectAdvanced(input,expectedDomain=null) {
       } catch { /* Try the next same-site conventional path while time remains. */ }
     }
   } else {
-    const certCodes=['CERT_HAS_EXPIRED','CERT_NOT_YET_VALID','UNABLE_TO_VERIFY_LEAF_SIGNATURE','ERR_TLS_CERT_ALTNAME_INVALID','DEPTH_ZERO_SELF_SIGNED_CERT','SELF_SIGNED_CERT_IN_CHAIN','UNABLE_TO_GET_ISSUER_CERT','UNABLE_TO_GET_ISSUER_CERT_LOCALLY'];
-    const certFail=certCodes.includes(mainError?.code);
-    findings.push(finding('tls','TLS certificate',certFail?'FAIL':'UNKNOWN',certFail?'The TLS certificate chain or hostname failed validation.':'TLS could not be evaluated because the website response was unavailable.',networkExplanation(mainError),certFail?'Renew or correctly configure the certificate for this hostname.':'Retry when the website is reachable.',{confidence:certFail?'high':'low'}));
+    const tls=tlsCheck(requested.protocol,null,mainError);
+    findings.push(finding('tls','TLS certificate',tls.status,tls.explanation,tls.evidence,tls.action,{confidence:tls.status==='UNKNOWN'?'low':'high',technicalExplanation:'Node.js performs TLS certificate chain and hostname verification with rejectUnauthorized enabled.'}));
     for(const [id,name] of [['csp','Content-Security-Policy'],['hsts','Strict-Transport-Security'],['nosniff','X-Content-Type-Options'],['referrer','Referrer-Policy'],['permissions','Permissions-Policy']])findings.push(finding(id,name,'UNKNOWN','This check could not run because no website response was received.',networkExplanation(mainError),'Retry when the site is reachable.',{confidence:'low',remediation:FIX_GUIDES[id]}));
     findings.push(finding('response','HTTP response','UNKNOWN','No HTTP response metadata was available.',networkExplanation(mainError),'Retry when the site is reachable.',{category:'behavior',confidence:'low'}));
   }
@@ -460,4 +500,4 @@ async function main() {
   const reconnect=setInterval(()=>{if(!db&&!mongoClient)connectMongo().catch(()=>{});},15000);reconnect.unref();
 }
 if(require.main===module) main();
-module.exports={validUrl,ipv4Public,ipv6Groups,isPublicIp,domainSimilarity,analyzePolicy,categoryScores,compareReports,consumeScanAllowance,consumeAuthAllowance,emailAddress,hashPassword,passwordMatches,sessionTokenHash,inspectAdvanced,readableText,normalizedUrl,unknownPolicyTopics};
+module.exports={validUrl,safeRedirectTarget,resolvePublic,ipv4Public,ipv6Groups,isPublicIp,domainSimilarity,analyzePolicy,categoryScores,compareReports,consumeScanAllowance,consumeAuthAllowance,emailAddress,hashPassword,passwordMatches,sessionTokenHash,inspectAdvanced,readableText,normalizedUrl,unknownPolicyTopics,tlsCheck,headerCheck,redirectCheck,responseCheck,networkExplanation};

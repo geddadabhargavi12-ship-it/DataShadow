@@ -47,7 +47,9 @@ Only HTTP(S) is accepted. Hostnames are resolved before each outbound request; e
 
 This is a best-effort MVP, not a formal security product. A scan uses a shared eight-second request budget, a 4.5-second per-request cap, and a 300 KB page limit to return promptly; a slow page or policy can therefore be UNKNOWN. Public IP classification intentionally fails closed for unusual IPv6 ranges. Some complex pages, JavaScript-rendered policy links, unusual encodings, and policy formats are not analyzed. A policy's detected statements do not prove actual practices. HTTPS alone and missing headers do not determine overall safety.
 
-The limited configuration indicator is shown from 0 to 100 after at least four of eight connection and configuration checks complete. The formula combines connection (40%), security configuration (40%), and observable response behavior (20%); PASS contributes 100, REVIEW 50, FAIL 0, and UNKNOWN is omitted. Missing categories are omitted and remaining category weights are normalized. Privacy policy results are shown separately as coverage of ten selected wording topics and never affect the indicator. Neither number is a probability of safety or a measure of actual privacy quality.
+The limited configuration indicator is shown from 0 to 100 after at least four of eight connection and configuration checks complete. The formula combines connection (40%), security configuration (40%), and observable response behavior (20%); PASS contributes 100, REVIEW 50, FAIL 0, while UNKNOWN and NOT APPLICABLE are omitted. Missing categories are omitted and remaining category weights are normalized. Privacy policy results are shown separately as coverage of ten selected wording topics and never affect the indicator. Neither number is a probability of safety or a measure of actual privacy quality.
+
+Each finding uses PASS (the specified observation succeeded), REVIEW (a setting needs contextual review), FAIL (a validation failed), UNKNOWN (the check could not be completed), or NOT APPLICABLE (the check does not apply, such as TLS on a plain HTTP response). An inaccessible target is represented with UNKNOWN results where evidence is unavailable, not blanket failures. For a valid TLS connection, evidence includes the issuer and certificate validity dates; known TLS validation errors such as expiration, hostname mismatch, or an untrusted chain are reported as FAIL with a plain-language reason. Privacy topic results distinguish FOUND, NOT_FOUND, and UNKNOWN: NOT_FOUND means no matching wording was found in the text analyzed, not that the organization never does that practice.
 
 ## Quick verification checklist
 
@@ -56,7 +58,7 @@ The limited configuration indicator is shown from 0 to 100 after at least four o
 3. Try malformed URLs and `http://127.0.0.1`; expect validation or SSRF rejection.
 4. Open a saved report, compare two reports for the same host, then delete one.
 5. Stop MongoDB; `/api/health` should report it disconnected and account operations should explain that authentication needs the database. The server retries the MongoDB connection in the background.
-6. Run `npm test` for URL/SSRF validation, policy analysis, score coverage, domain similarity, scan limits, normalization, and report-diff checks.
+6. Run `npm test` for URL/SSRF validation, redirect blocking, TLS result classification, response/header interpretation, policy analysis, score coverage, domain similarity, scan limits, normalization, and report-diff checks. Local-only HTTP fixtures cover headers, a 403 response, private redirect blocking, missing policy text, unavailable targets, and timeouts. No third-party websites are used as test targets. On Windows PowerShell, use `npm.cmd test` if script execution policy blocks `npm test`.
 
 ## Hackathon experience
 

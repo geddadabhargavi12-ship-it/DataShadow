@@ -120,8 +120,8 @@ function renderReport(report) {
       <p class="rating-caveat">This is not a verdict that the whole website is secure or unsafe.</p>
     </div>`;
   const summary = report.summary || {};
-  $('#summaryGrid').innerHTML = ['PASS', 'REVIEW', 'FAIL', 'UNKNOWN'].map(status => `
-    <div class="summary-card ${status.toLowerCase()}" title="${status} checks"><span>${status}</span><strong>${summary[status] || 0}</strong></div>`).join('');
+  $('#summaryGrid').innerHTML = ['PASS', 'REVIEW', 'FAIL', 'UNKNOWN', 'NOT_APPLICABLE'].map(status => `
+    <div class="summary-card ${status.toLowerCase()}" title="${status.replaceAll('_', ' ')} checks"><span>${status.replaceAll('_', ' ')}</span><strong>${summary[status] || 0}</strong></div>`).join('');
   renderPriorities(report.findings || []);
   renderCategories(report);
   renderPrivacy(report.privacy || {});
@@ -146,7 +146,7 @@ function renderFindings() {
   const category = $('#categoryFilter').value;
   const query = $('#findingSearch').value.trim().toLowerCase();
   const items = currentFindings.filter(item => (status === 'all' || item.status === status) && (category === 'all' || item.category === category) && `${item.name} ${item.explanation} ${item.evidence} ${item.technicalExplanation || ''}`.toLowerCase().includes(query));
-  const rank = { FAIL: 0, REVIEW: 1, UNKNOWN: 2, PASS: 3 };
+  const rank = { FAIL: 0, REVIEW: 1, UNKNOWN: 2, NOT_APPLICABLE: 3, PASS: 4 };
   items.sort((a, b) => rank[a.status] - rank[b.status]);
   $('#findingCount').textContent = `${items.length} of ${currentFindings.length} observations`;
   $('#findings').innerHTML = items.map(item => {
@@ -198,7 +198,7 @@ function renderHistory() {
     return `<article class="history-item" data-id="${escapeHtml(report.id)}">
       <div class="history-top"><div class="history-site"><span class="history-favicon">${escapeHtml((report.hostname || 'W').charAt(0).toUpperCase())}</span><div class="history-title"><strong>${escapeHtml(report.hostname || report.url)}</strong><small>${report.finalStatus ? `HTTP ${report.finalStatus}` : 'Response unavailable'}${report.rating?.score != null ? ` · ${report.rating.score}/100` : ''}</small></div></div><span class="history-date">${escapeHtml(formatDate(report.scannedAt))}</span></div>
       <span class="history-url" title="${escapeHtml(report.url)}">${escapeHtml(report.url)}</span>
-      <div class="history-bottom"><div class="history-summary"><span class="p">${summary.PASS || 0} PASS</span><span class="r">${summary.REVIEW || 0} REVIEW</span><span class="u">${summary.UNKNOWN || 0} UNKNOWN</span></div>
+      <div class="history-bottom"><div class="history-summary"><span class="p">${summary.PASS || 0} PASS</span><span class="r">${summary.REVIEW || 0} REVIEW</span><span class="f">${summary.FAIL || 0} FAIL</span><span class="u">${summary.UNKNOWN || 0} UNKNOWN</span>${summary.NOT_APPLICABLE ? `<span class="na">${summary.NOT_APPLICABLE} N/A</span>` : ''}</div>
         <div class="history-actions"><button class="small-btn open-report" data-id="${escapeHtml(report.id)}">View report</button><button class="small-btn select-compare ${compareFirstId === report.id ? 'selected' : ''}" data-id="${escapeHtml(report.id)}">${compareFirstId === report.id ? 'Selected' : 'Compare'}</button><button class="small-btn danger delete-report" data-id="${escapeHtml(report.id)}">Delete</button></div>
       </div></article>`;
   }).join('');
