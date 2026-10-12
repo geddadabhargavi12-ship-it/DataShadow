@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080d18">
+  <title>DataShadow — Website Trust Inspector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/components.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#home" aria-label="DataShadow home"><span class="brand-mark">D<span></span></span><span>data<span class="brand-light">shadow</span></span></a>
+    <nav aria-label="Main navigation"><a href="#scan">New scan</a><a href="#compare-lab">Compare</a><a href="#history">Reports</a><a href="#learn">Learn</a></nav>
+    <div id="dbBadge" class="db-badge"><i></i><span>Connecting</span></div>
+    <div id="authControls" class="auth-controls" hidden><span id="currentUser"></span><button id="logoutButton" class="small-btn">Sign out</button></div>
+  </header>
+
+  <main>
+    <section id="authGate" class="auth-gate">
+      <div class="auth-card"><div class="eyebrow"><span class="eyebrow-line"></span> YOUR PRIVATE WORKSPACE</div><h1 id="authTitle">Sign in to DataShadow.</h1><p>Save and compare your website inspection reports in your own account.</p>
+        <div class="auth-tabs"><button id="loginTab" type="button" class="active">Sign in</button><button id="registerTab" type="button">Create account</button></div>
+        <form id="loginForm" class="auth-form"><label for="loginEmail">Email address</label><input id="loginEmail" type="email" required autocomplete="email" maxlength="254" placeholder="you@example.com"><label for="loginPassword">Password</label><input id="loginPassword" type="password" required autocomplete="current-password" maxlength="128"><button class="button primary" type="submit">Sign in <span>→</span></button></form>
+        <form id="registerForm" class="auth-form" hidden><label for="registerEmail">Email address</label><input id="registerEmail" type="email" required autocomplete="email" maxlength="254" placeholder="you@example.com"><label for="registerPassword">Password</label><input id="registerPassword" type="password" required autocomplete="new-password" minlength="10" maxlength="128" placeholder="At least 10 characters"><button class="button primary" type="submit">Create account <span>→</span></button></form>
+        <p id="authNotice" class="auth-notice" role="status" aria-live="polite"></p><small>Passwords are stored as salted hashes. Your saved reports are visible only to your account. Email verification and password recovery are not included in this demo.</small>
+      </div>
+    </section>
+    <section id="home" class="hero">
+      <div class="hero-main">
+        <div class="eyebrow"><span class="eyebrow-line"></span> THE OPEN WEB, MADE CLEARER</div>
+        <h1>Trust the signals.<br><span>Know the limits.</span></h1>
+        <p>See the security settings a website exposes and what its privacy policy says, in one clear report.</p>
+        <a class="button primary" href="#scan">Inspect a website <span class="button-arrow">↘</span></a>
+        <div class="hero-foot"><span class="pulse"></span> Public configuration checks <b>·</b> No exploit attempts</div>
+      </div>
+      <div class="hero-visual" aria-label="Inspection areas DataShadow checks">
+        <div class="visual-orbit orbit-one"></div><div class="visual-orbit orbit-two"></div>
+        <div class="preview-card"><div class="preview-top"><span class="preview-kicker"><i></i> INSPECTION SCOPE</span><span class="preview-spark">*</span></div><div class="preview-domain"><span class="domain-icon">&gt;</span><div><strong>One public website</strong><small>OBSERVED FROM OUTSIDE</small></div><span class="preview-lock">8</span></div><div class="preview-score"><div class="mini-ring"><span>4</span></div><div><small>AREAS OF EVIDENCE</small><strong>Separate, explainable signals</strong><span>No safety verdict</span></div></div><div class="preview-check"><span class="check-icon pass">01</span><span>Connection and TLS</span><b>CHECK</b></div><div class="preview-check"><span class="check-icon review">02</span><span>Browser configuration</span><b class="review-text">CHECK</b></div><div class="preview-check"><span class="check-icon unknown">03</span><span>Policy text and behavior</span><b class="unknown-text">CHECK</b></div><div class="preview-bottom"><span>Observed evidence, stated limits.</span><span>01 / 04</span></div></div><div class="visual-label label-top"><span>01</span> CONNECTION</div><div class="visual-label label-bottom"><span>02</span> PRIVACY SIGNALS</div>
+      </div>
+      <div class="hero-index">DATASHADOW <span>·</span> WEB INSPECTION / 01</div>
+    </section>
+
+    <section id="scan" class="scan-section">
+      <div class="section-intro"><div class="eyebrow"><span class="eyebrow-line"></span> BEGIN WITH A URL</div><h2>Take a closer look.</h2><p>A few seconds. A clearer picture.</p></div>
+      <form id="scanForm" class="scan-form">
+        <label for="urlInput">Website address</label>
+        <div class="input-row"><span class="input-prefix">↗</span><input id="urlInput" type="url" placeholder="https://example.com" required autocomplete="url"><button id="scanButton" type="submit" class="button primary"><span>Start inspection</span><span class="button-arrow">→</span></button></div>
+        <label class="expected-label" for="expectedDomain">Expected domain <small>Optional: flag a mismatched or lookalike hostname</small></label><input id="expectedDomain" class="expected-input" type="text" placeholder="example.com" autocomplete="off">
+        <div class="form-foot"><span>HTTP or HTTPS</span><span class="form-dot"></span><span>Public sites only</span><span class="form-foot-right">We never attempt to exploit the site.</span></div>
+      </form>
+      <div id="notice" class="notice" role="alert" hidden></div>
+      <div id="loading" class="loading" role="status" aria-live="polite" hidden><span class="spinner"></span><div class="loading-copy"><strong id="loadingTitle">Reading the public signals</strong><small id="loadingDetail">Checking the connection, TLS setup, response headers, and policy link.</small><div class="scan-rail"><i></i></div><div class="scan-steps"><span>CONNECT</span><span>TLS</span><span>HEADERS</span><span>PRIVACY</span></div></div><span class="loading-time">UP TO 8 SEC</span></div>
+    </section>
+
+    <section id="results" class="results-section" hidden>
+      <div class="report-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> INSPECTION REPORT</div><h2 id="resultTitle">Website report</h2><div id="resultMeta" class="result-meta"></div></div><div class="report-tools"><button id="downloadButton" class="button outline">Save JSON</button><button id="htmlReportButton" class="button outline">Save report</button><button id="printButton" class="button outline">Print <span>↗</span></button></div></div>
+      <div class="report-grid">
+        <article id="ratingCard" class="rating-card"></article>
+        <aside class="report-aside"><div class="aside-label">REPORT SNAPSHOT <span>LIVE</span></div><div id="summaryGrid" class="summary-grid"></div><div class="aside-foot">Each count links to evidence below.</div></aside>
+      </div>
+      <section class="category-section"><div class="findings-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> FOUR LENSES</div><h3>Where the evidence comes from</h3></div><span id="coverageLabel" class="finding-count"></span></div><div id="categoryGrid" class="category-grid"></div></section>
+      <div class="insight-grid"><section class="action-plan"><div class="insight-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> YOUR NEXT MOVES</div><h3>What to look at first</h3></div><span class="insight-number">01—03</span></div><div id="priorityList" class="priority-list"></div></section><section id="privacyCard" class="privacy-card"></section></div>
+      <div id="limitations" class="info-banner"></div>
+      <div class="findings-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> WHAT WE FOUND</div><h3>Check by check</h3></div><span id="findingCount" class="finding-count"></span></div>
+      <div class="finding-filters"><input id="findingSearch" type="search" placeholder="Search checks or evidence"><select id="statusFilter" aria-label="Filter by result"><option value="all">All results</option><option>FAIL</option><option>REVIEW</option><option>PASS</option><option>UNKNOWN</option></select><select id="categoryFilter" aria-label="Filter by category"><option value="all">All categories</option><option>Connection security</option><option>Security configuration</option><option>Privacy transparency</option><option>Observable behavior</option></select></div>
+      <div id="findings" class="finding-list"></div>
+    </section>
+
+    <section id="history" class="history-section">
+      <div class="history-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> SAVED TO YOUR DATABASE</div><h2>Inspection history</h2><p>Pick up where you left off, or compare two reports from the same host.</p></div><button id="refreshHistory" class="icon-button" aria-label="Refresh reports" title="Refresh reports">↻</button></div>
+      <div class="history-toolbar"><div class="history-count" id="historyCount">RECENT REPORTS</div><label class="history-search"><span>⌕</span><input id="historySearch" type="search" placeholder="Filter by website"></label></div>
+      <div id="historyList" class="history-list"><div class="empty-state"><span class="empty-orbit">◷</span><strong>Your next inspection starts here.</strong><p>Saved reports appear here automatically.</p><a href="#scan">Start your first scan <span>→</span></a></div></div>
+      <div id="comparePanel" class="compare-panel" hidden></div>
+    </section>
+
+    <section id="compare-lab" class="learn-section"><div class="section-intro"><div class="eyebrow"><span class="eyebrow-line"></span> CROSS-SITE COMPARISON</div><h2>Compare what each site exposes.</h2><p>Inspect two public sites side by side. Scores are signals, not rankings of trustworthiness.</p></div><form id="compareForm" class="compare-form"><label for="compareLeft">First website</label><input id="compareLeft" type="url" required placeholder="https://first.example"><label for="compareRight">Second website</label><input id="compareRight" type="url" required placeholder="https://second.example"><button class="button primary" type="submit">Inspect both sites <span>&rarr;</span></button><p>Uses two scans from your per-minute limit. Reports save when the database is connected.</p></form><div id="liveCompareResult" class="live-compare-result" hidden></div></section><section id="learn" class="learn-section"><div class="section-intro"><div class="eyebrow"><span class="eyebrow-line"></span> LEARN THE SIGNALS</div><h2>Know what a check can tell you.</h2><p>Short explainers and a quick quiz help turn a report into useful questions.</p></div><div class="lesson-grid"><article class="lesson-card"><span>01 / CONNECTION</span><h3>TLS validates a connection</h3><p>A valid certificate lets the scanner verify the certificate chain and hostname. It does not show what the site does with information after delivery.</p></article><article class="lesson-card"><span>02 / HEADERS</span><h3>Headers are one layer</h3><p>Security headers guide browser behavior. Missing headers merit context and review; they do not prove the site is exploitable.</p></article><article class="lesson-card"><span>03 / PRIVACY</span><h3>Policy text is a statement</h3><p>Topic matches summarize accessible wording. They cannot confirm whether actual data practices follow that wording.</p></article></div><div class="quiz-card"><h3>Quick check</h3><p>A policy mentions data deletion. What does this inspection establish?</p><div id="quizChoices"><button type="button" data-answer="wrong">That every deletion request is fulfilled.</button><button type="button" data-answer="right">That matching wording was found in the policy text.</button><button type="button" data-answer="wrong">That the site never retains data.</button></div><p id="quizFeedback" aria-live="polite"></p></div></section>
+
+      <section id="about" class="about-section">
+      <div class="about-title"><div class="eyebrow"><span class="eyebrow-line"></span> A TOOL FOR BETTER QUESTIONS</div><h2>Clear signals.<br><span>Honest limits.</span></h2></div>
+      <div class="about-copy"><p>DataShadow checks visible security configuration and searches an accessible privacy policy for selected topics. It helps you understand what was observed, what deserves a closer look, and what the scan could not verify.</p><div class="about-points"><div><span>01</span><div><b>Evidence over guesswork</b><small>Every result includes what the inspection actually saw.</small></div></div><div><span>02</span><div><b>Context over alarm</b><small>A missing header is a configuration note, not proof of a vulnerability.</small></div></div><div><span>03</span><div><b>Words are not actions</b><small>Policy text describes claims, not a site's real-world behavior.</small></div></div></div></div>
+      <div class="about-disclaimer"><span>IMPORTANT CONTEXT</span><p>This is a limited configuration and policy-text inspection, not a vulnerability assessment or a guarantee that a website is safe.</p></div>
+    </section>
+  </main>
+  <footer><a class="brand" href="#home"><span class="brand-mark">D<span></span></span><span>data<span class="brand-light">shadow</span></span></a><span>PUBLIC SIGNALS. PRACTICAL CONTEXT.</span><a href="#home">Back to top ↑</a></footer>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script src="/js/app.js" defer></script>
+</body>
+</html>

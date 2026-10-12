@@ -1,0 +1,10 @@
+{
+  "name": "datashadow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Evidence-based website trust and privacy inspector",
+  "main": "server.js",
+  "scripts": { "start": "node server.js", "test": "node --test" },
+  "engines": { "node": ">=20" },
+  "dependencies": { "mongodb": "^6.17.0" }
+}
